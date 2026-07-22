@@ -9,12 +9,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Helper delay function for throttling
+// Helper delay function for rate-limiting
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Helper to sanitize Kenyan phone numbers to format: 254XXXXXXXXX
 function formatPhoneNumber(phone) {
-  let cleaned = phone.replace(/\D/g, '');
+  let cleaned = String(phone).replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
     cleaned = '254' + cleaned.slice(1);
   } else if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
@@ -26,7 +26,14 @@ function formatPhoneNumber(phone) {
 app.post('/api/bulk-deposit', async (req, res) => {
   const { phoneNumbers, amount, reference } = req.body;
   const token = process.env.BEARER_TOKEN;
-  const apiUrl = process.env.API_URL || 'https://pay.cloud.or.ke/api/wallet/deposit';
+
+  // Clean and ensure HTTPS URL without trailing slashes
+  let apiUrl = (process.env.API_URL || 'https://pay.cloud.or.ke/api/wallet/deposit').trim();
+  apiUrl = apiUrl.replace(/\/+$/, ''); // Strip trailing slashes to avoid 301/302 redirects
+
+  if (!token) {
+    return res.status(500).json({ error: 'BEARER_TOKEN environment variable is not configured.' });
+  }
 
   if (!phoneNumbers || !Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
     return res.status(400).json({ error: 'Please provide a valid list of phone numbers.' });
@@ -36,7 +43,7 @@ app.post('/api/bulk-deposit', async (req, res) => {
     return res.status(400).json({ error: 'Please provide a valid amount.' });
   }
 
-  // Set SSE (Server-Sent Events) headers for real-time progress logging
+  // Set SSE (Server-Sent Events) headers for real-time streaming
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -61,15 +68,19 @@ app.post('/api/bulk-deposit', async (req, res) => {
     };
 
     try {
-      const response = await fetch(apiUrl, {
+      // Explicit options configuration to guarantee POST method and follow redirects cleanly
+      const fetchOptions = {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token.trim()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        body: JSON.stringify(payload)
-      });
+        body: JSON.stringify(payload),
+        redirect: 'follow' // Automatically follow redirects (307/308 preserve POST)
+      };
 
+      const response = await fetch(apiUrl, fetchOptions);
       const responseData = await response.json().catch(() => ({}));
 
       if (response.ok) {
@@ -78,17 +89,17 @@ app.post('/api/bulk-deposit', async (req, res) => {
         logEntry.message = 'STK Push sent successfully.';
       } else {
         logEntry.status = 'FAILED';
-        logEntry.error = responseData.message || responseData.error || `HTTP ${response.status}`;
+        logEntry.error = responseData.message || responseData.error || `HTTP ${response.status} ${response.statusText}`;
       }
     } catch (err) {
       logEntry.status = 'FAILED';
       logEntry.error = err.message || 'Network/Server Error';
     }
 
-    // Stream status back to frontend
+    // Stream status update to client
     res.write(`data: ${JSON.stringify(logEntry)}\n\n`);
 
-    // Throttle rate to 30 requests per minute (2000 ms between requests)
+    // Throttle rate: 30 requests per minute = 1 request every 2,000ms
     if (i < total - 1) {
       await sleep(2000);
     }
