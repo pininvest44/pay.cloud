@@ -10,10 +10,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Helper delay function to enforce rate-limiting (30 requests/min = 2,000ms delay)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Helper to sanitize Kenyan phone numbers into format: 254XXXXXXXXX
 function formatPhoneNumber(phone) {
   let cleaned = String(phone).replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
@@ -28,8 +26,8 @@ app.post('/api/bulk-deposit', async (req, res) => {
   const { phoneNumbers, amount, reference } = req.body;
   const token = process.env.BEARER_TOKEN;
 
-  // Endpoint targeting pay.cloud.or.ke
-  const apiUrl = (process.env.API_URL || 'https://pay.cloud.or.ke/api/wallet/deposit').trim();
+  // Added 'www.' subdomain to avoid Apache 301 redirects
+  const apiUrl = (process.env.API_URL || 'https://www.pay.cloud.or.ke/api/wallet/deposit').trim();
 
   if (!token) {
     return res.status(500).json({ error: 'BEARER_TOKEN is not configured in environment variables.' });
@@ -43,7 +41,6 @@ app.post('/api/bulk-deposit', async (req, res) => {
     return res.status(400).json({ error: 'Please provide a valid amount.' });
   }
 
-  // Set SSE (Server-Sent Events) headers for real-time log streaming
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -77,27 +74,24 @@ app.post('/api/bulk-deposit', async (req, res) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        maxRedirects: 0, // Prevents HTTP client from converting POST to GET on redirects
-        validateStatus: () => true // Allow handling non-200 responses cleanly
+        validateStatus: () => true
       });
 
       if (response.status >= 200 && response.status < 300) {
         logEntry.status = 'SUCCESS';
         logEntry.reference = response.data?.reference || 'N/A';
-        logEntry.message = 'Deposit request initiated successfully.';
+        logEntry.message = 'Deposit initiated successfully.';
       } else {
         logEntry.status = 'FAILED';
         logEntry.error = response.data?.message || response.data?.error || `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
       }
     } catch (err) {
       logEntry.status = 'FAILED';
-      logEntry.error = err.message || 'Network/Server Error';
+      logEntry.error = err.message || 'Network Error';
     }
 
-    // Stream status update back to client UI
     res.write(`data: ${JSON.stringify(logEntry)}\n\n`);
 
-    // Enforce 30 requests per minute throttling (2 seconds between each dispatch)
     if (i < total - 1) {
       await sleep(2000);
     }
