@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bulk STK Push Dispatcher</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Bulk STK Push Dispatcher</h2>
+    <p class="subtitle">Rate limited to 30 requests per minute (1 req / 2s)</p>
+
+    <form id="stkForm">
+      <div class="form-group">
+        <label for="phoneNumbers">Phone Numbers (one per line or comma-separated)</label>
+        <textarea id="phoneNumbers" rows="6" placeholder="0712345678&#10;254787654321&#10;0112345678" required></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="amount">Amount (KES)</label>
+          <input type="number" id="amount" min="1" placeholder="500" required>
+        </div>
+        <div class="form-group">
+          <label for="reference">Reference (Optional)</label>
+          <input type="text" id="reference" placeholder="Bulk Deposit">
+        </div>
+      </div>
+
+      <button type="submit" id="submitBtn">Send Bulk STK Push</button>
+    </form>
+
+    <div class="status-container" id="statusContainer" style="display:none;">
+      <h3>Processing Status</h3>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <p id="progressStats">0 / 0 processed</p>
+
+      <div class="logs-header">
+        <h4>Activity Log</h4>
+        <button id="clearLogs">Clear Log</button>
+      </div>
+      <div id="logs" class="logs-box"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
