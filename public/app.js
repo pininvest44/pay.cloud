@@ -10,7 +10,6 @@ document.getElementById('stkForm').addEventListener('submit', async (e) => {
   const progressFill = document.getElementById('progressFill');
   const progressStats = document.getElementById('progressStats');
 
-  // Clean numbers list
   const phoneNumbers = rawNumbers
     .split(/[\n,]/)
     .map(n => n.trim())
@@ -21,7 +20,6 @@ document.getElementById('stkForm').addEventListener('submit', async (e) => {
     return;
   }
 
-  // Setup UI
   submitBtn.disabled = true;
   submitBtn.textContent = 'Processing Batch...';
   statusContainer.style.display = 'block';
@@ -45,24 +43,22 @@ document.getElementById('stkForm').addEventListener('submit', async (e) => {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n\n');
-      buffer = lines.pop(); // Keep incomplete chunk in buffer
+      buffer = lines.pop(); // Retain incomplete line chunks in buffer
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = JSON.parse(line.replace('data: ', ''));
-          
+
           if (data.done) {
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Send Bulk STK Push';
+            submitBtn.textContent = 'Dispatch Bulk STK Push';
             return;
           }
 
-          // Update Progress
           const pct = Math.round((data.index / data.total) * 100);
           progressFill.style.width = `${pct}%`;
           progressStats.textContent = `${data.index} / ${data.total} processed`;
 
-          // Append Log Entry
           const logDiv = document.createElement('div');
           logDiv.className = `log-entry ${data.status}`;
           logDiv.textContent = `[${new Date(data.timestamp).toLocaleTimeString()}] #${data.index} ${data.phone} - ${data.status} ${data.reference ? '| Ref: ' + data.reference : ''} ${data.error ? '| Err: ' + data.error : ''}`;
@@ -72,9 +68,9 @@ document.getElementById('stkForm').addEventListener('submit', async (e) => {
       }
     }
   } catch (err) {
-    alert('An error occurred during submission: ' + err.message);
+    alert('Execution error: ' + err.message);
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Send Bulk STK Push';
+    submitBtn.textContent = 'Dispatch Bulk STK Push';
   }
 });
 
