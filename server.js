@@ -26,11 +26,10 @@ app.post('/api/bulk-deposit', async (req, res) => {
   const { phoneNumbers, amount, reference } = req.body;
   const token = process.env.BEARER_TOKEN;
 
-  // Added 'www.' subdomain to avoid Apache 301 redirects
   const apiUrl = (process.env.API_URL || 'https://www.pay.cloud.or.ke/api/wallet/deposit').trim();
 
   if (!token) {
-    return res.status(500).json({ error: 'BEARER_TOKEN is not configured in environment variables.' });
+    return res.status(500).json({ error: 'BEARER_TOKEN environment variable is missing or empty.' });
   }
 
   if (!phoneNumbers || !Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
@@ -46,6 +45,7 @@ app.post('/api/bulk-deposit', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
 
   const total = phoneNumbers.length;
+  const cleanToken = token.trim();
 
   for (let i = 0; i < total; i++) {
     const rawPhone = phoneNumbers[i];
@@ -70,7 +70,8 @@ app.post('/api/bulk-deposit', async (req, res) => {
         url: apiUrl,
         data: payload,
         headers: {
-          'Authorization': `Bearer ${token.trim()}`,
+          'Authorization': `Bearer ${cleanToken}`,
+          'X-API-Key': cleanToken,
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
