@@ -9,7 +9,7 @@
 <body>
   <div class="container">
     <h2>Bulk STK Push Dispatcher</h2>
-    <p class="subtitle">Rate limited to 30 requests per minute (1 req / 2s)</p>
+    <p class="subtitle">Throttled to 30 requests per minute (1 req / 2 sec)</p>
 
     <form id="stkForm">
       <div class="form-group">
@@ -28,7 +28,7 @@
         </div>
       </div>
 
-      <button type="submit" id="submitBtn">Send Bulk STK Push</button>
+      <button type="submit" id="submitBtn">Dispatch Bulk STK Push</button>
     </form>
 
     <div class="status-container" id="statusContainer" style="display:none;">
@@ -40,7 +40,7 @@
 
       <div class="logs-header">
         <h4>Activity Log</h4>
-        <button id="clearLogs">Clear Log</button>
+        <button id="clearLogs">Clear Logs</button>
       </div>
       <div id="logs" class="logs-box"></div>
     </div>
