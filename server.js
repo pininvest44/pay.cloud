@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -25,11 +26,11 @@ app.post('/api/bulk-deposit', async (req, res) => {
   const { phoneNumbers, amount, reference } = req.body;
   const token = process.env.BEARER_TOKEN;
 
-  // Updated to the actual CloudPay STK Push route
-  let apiUrl = (process.env.API_URL || 'https://pay.cloud.or.ke/api/payments/mpesa/stkpush').trim();
+  // Exact endpoint for wallet deposit
+  const apiUrl = (process.env.API_URL || 'https://pay.cloud.or.ke/api/wallet/deposit').trim();
 
   if (!token) {
-    return res.status(500).json({ error: 'BEARER_TOKEN is not set in environment variables.' });
+    return res.status(500).json({ error: 'BEARER_TOKEN is not configured in environment variables.' });
   }
 
   if (!phoneNumbers || !Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
@@ -50,11 +51,10 @@ app.post('/api/bulk-deposit', async (req, res) => {
     const rawPhone = phoneNumbers[i];
     const formattedPhone = formatPhoneNumber(rawPhone);
 
-    // Payload expected by CloudPay STK Push
     const payload = {
       phone: formattedPhone,
       amount: Number(amount),
-      accountReference: reference || 'BulkDeposit'
+      ...(reference ? { reference } : {})
     };
 
     let logEntry = {
@@ -65,34 +65,35 @@ app.post('/api/bulk-deposit', async (req, res) => {
     };
 
     try {
-      const response = await fetch(apiUrl, {
+      const response = await axios({
         method: 'POST',
+        url: apiUrl,
+        data: payload,
         headers: {
           'Authorization': `Bearer ${token.trim()}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify(payload)
+        maxRedirects: 0, // Prevents Axios from silently switching POST to GET on HTTP redirects
+        validateStatus: () => true // Handle 4xx / 5xx cleanly without throwing exceptions
       });
 
-      const responseData = await response.json().catch(() => ({}));
-
-      if (response.ok) {
+      if (response.status >= 200 && response.status < 300) {
         logEntry.status = 'SUCCESS';
-        logEntry.reference = responseData.reference || responseData.CheckoutRequestID || 'N/A';
-        logEntry.message = 'STK Push initiated successfully.';
+        logEntry.reference = response.data?.reference || 'N/A';
+        logEntry.message = 'Deposit initiated successfully.';
       } else {
         logEntry.status = 'FAILED';
-        logEntry.error = responseData.message || responseData.error || `HTTP ${response.status}`;
+        logEntry.error = response.data?.message || response.data?.error || `HTTP ${response.status}: ${JSON.stringify(response.data)}`;
       }
     } catch (err) {
       logEntry.status = 'FAILED';
-      logEntry.error = err.message || 'Network/Server Error';
+      logEntry.error = err.message || 'Network Error';
     }
 
     res.write(`data: ${JSON.stringify(logEntry)}\n\n`);
 
-    // Maintain 30 requests per minute rate limit
+    // Maintain 30 requests per minute rate limit (2000 ms delay)
     if (i < total - 1) {
       await sleep(2000);
     }
